@@ -22,7 +22,8 @@ from app.database.base import Base
 # Import every module's models here so Base.metadata knows about them
 # for autogenerate.
 from app.auth.models import Profile  # noqa
-# from app.chatbot.models import Chatbot  # noqa
+from app.chatbot.models import Chatbot, ChatbotFAQ  # noqa
+from app.widget.models import WidgetConversation, WidgetMessage  # noqa
 
 config = context.config
 

@@ -11,6 +11,7 @@ from fastapi import FastAPI
 
 from app.api.v1.health import router as health_router
 from app.auth.router import router as auth_router
+from app.chatbot.router import router as chatbot_router
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -20,6 +21,7 @@ from app.core.exceptions import (
 from app.core.logging_config import configure_logging
 from app.middleware.cors import add_cors_middleware
 from app.middleware.request_logging import RequestLoggingMiddleware
+from app.widget.router import router as widget_router
 
 configure_logging()
 
@@ -36,6 +38,7 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(health_router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
+app.include_router(chatbot_router, prefix=settings.API_V1_PREFIX)
+app.include_router(widget_router, prefix=settings.API_V1_PREFIX)
 
 # Future routers mount the same way, one line each:
-# app.include_router(chatbot_router, prefix=settings.API_V1_PREFIX)

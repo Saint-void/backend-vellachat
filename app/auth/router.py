@@ -7,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.auth.dependencies import CurrentUser, get_current_user
 from app.auth.repository import ProfileRepository
-from app.auth.schemas import AuthSessionRead, LoginRequest, ProfileRead, ProfileUpdate, SignupRequest
+from app.auth.schemas import (
+    AuthSessionRead,
+    LoginRequest,
+    OAuthAuthorizeUrlRead,
+    ProfileRead,
+    ProfileUpdate,
+    SignupRequest,
+)
 from app.auth.service import ProfileService
 from app.auth.supabase import supabase_auth
 
@@ -31,6 +38,11 @@ async def login(data: LoginRequest):
 @router.get("/oauth/{provider}")
 async def oauth(provider: str, redirect_to: str = Query(...)):
     return RedirectResponse(supabase_auth.oauth_authorize_url(provider, redirect_to))
+
+
+@router.get("/oauth/{provider}/authorize-url", response_model=OAuthAuthorizeUrlRead)
+async def oauth_authorize_url(provider: str, redirect_to: str = Query(...)):
+    return OAuthAuthorizeUrlRead(url=supabase_auth.oauth_authorize_url(provider, redirect_to))
 
 
 @router.get("/me", response_model=ProfileRead)

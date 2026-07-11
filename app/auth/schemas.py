@@ -32,6 +32,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class OAuthAuthorizeUrlRead(BaseModel):
+    url: str
+
+
 class AuthUserRead(BaseModel):
     id: UUID
     email: str | None = None
