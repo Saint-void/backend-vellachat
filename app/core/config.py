@@ -48,6 +48,19 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_PUBLISHABLE_KEY: str
 
+    # --- AI ---
+    # local keeps development and tests deterministic. Set to "openai"
+    # in production once OPENAI_API_KEY is configured.
+    AI_PROVIDER: str = Field(default="local", pattern="^(local|openai)$")
+    AI_EMBEDDING_DIMENSIONS: int = 1536
+    OPENAI_API_KEY: str | None = None
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+
+    # --- Knowledge ---
+    KNOWLEDGE_STORAGE_DIR: str = ".data/knowledge_uploads"
+    KNOWLEDGE_MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
+
     # --- CORS ---
     # Comma-separated, e.g. "http://localhost:3000,https://app.example.com".
     # Kept as a plain str field on purpose: pydantic-settings tries to

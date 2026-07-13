@@ -23,6 +23,7 @@ from app.database.base import Base
 # for autogenerate.
 from app.auth.models import Profile  # noqa
 from app.chatbot.models import Chatbot, ChatbotFAQ  # noqa
+from app.knowledge.models import KnowledgeChunk, KnowledgeDocument  # noqa
 from app.widget.models import WidgetConversation, WidgetMessage  # noqa
 
 config = context.config

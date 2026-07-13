@@ -21,6 +21,7 @@ from app.core.exceptions import (
 from app.core.logging_config import configure_logging
 from app.middleware.cors import add_cors_middleware
 from app.middleware.request_logging import RequestLoggingMiddleware
+from app.knowledge.router import router as knowledge_router
 from app.widget.router import router as widget_router
 
 configure_logging()
@@ -39,6 +40,7 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 app.include_router(health_router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(chatbot_router, prefix=settings.API_V1_PREFIX)
+app.include_router(knowledge_router, prefix=settings.API_V1_PREFIX)
 app.include_router(widget_router, prefix=settings.API_V1_PREFIX)
 
 # Future routers mount the same way, one line each:

@@ -7,6 +7,8 @@ from uuid import UUID
 
 from app.chatbot.models import Chatbot, ChatbotFAQ
 from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
+from app.knowledge.repository import KnowledgeRepository
+from app.knowledge.retrieval import KnowledgeRetriever
 from app.widget.models import WidgetConversation
 from app.widget.repository import WidgetRepository
 from app.widget.schemas import (
@@ -142,6 +144,12 @@ class WidgetService:
 
         if best_faq:
             return best_faq.answer.strip(), best_faq
+
+        knowledge_answer, _matches = await KnowledgeRetriever(
+            KnowledgeRepository(self.repository.db)
+        ).answer_from_knowledge(chatbot.id, content, chatbot.tone)
+        if knowledge_answer:
+            return knowledge_answer.strip(), None
 
         fallback = self._fallback_reply(chatbot)
         return fallback, None
