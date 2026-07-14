@@ -1,147 +1,124 @@
-"""AI provider contracts and implementations."""
-
-import hashlib
-import math
-import re
 from typing import Protocol
 
 import httpx
 
 from app.core.config import settings
-from app.core.exceptions import ExternalServiceError, ValidationError
+from app.core.exceptions import ExternalServiceError
 
 
 class AIProvider(Protocol):
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """Return one embedding vector per input text."""
+        ...
 
-    async def generate_answer(self, question: str, context: list[str], tone: str) -> str:
-        """Generate an answer from retrieved context."""
+    async def generate_answer(
+        self,
+        question: str,
+        chatbot_name: str,
+        context: list[str],
+        tone: str,
+    ) -> str:
+        ...
 
 
-class LocalAIProvider:
+class OllamaProvider:
     """
-    Deterministic local provider for development.
+    Uses the local Ollama server.
 
-    It is not semantically smart like OpenAI embeddings, but it lets
-    the whole knowledge pipeline run without network access or secrets.
+    Chat:
+        qwen3:4b
+        gemma3:4b
+        llama3.2
+
+    Embeddings:
+        nomic-embed-text
+
+    Runs entirely on Apple Silicon using Metal.
     """
 
-    def __init__(self, dimensions: int):
-        self.dimensions = dimensions
-
-    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        return [self._embed(text) for text in texts]
-
-    async def generate_answer(self, question: str, context: list[str], tone: str) -> str:
-        if not context:
-            return ""
-
-        joined = "\n\n".join(context)
-        if len(joined) > 1200:
-            joined = f"{joined[:1200].rsplit(' ', 1)[0]}..."
-
-        normalized_question = question.strip()
-        if normalized_question:
-            return self._build_local_answer(joined)
-
-        return f"Based on the uploaded knowledge, here is what I found:\n\n{joined}"
-
-    def _build_local_answer(self, joined: str) -> str:
-        cleaned = joined.strip()
-        normalized = re.sub(r"\s+", " ", cleaned)
-        for prefix in (
-            "the document mentions",
-            "this document mentions",
-            "the uploaded knowledge mentions",
-            "it mentions",
-        ):
-            if normalized.lower().startswith(prefix):
-                rest = normalized[len(prefix):].strip()
-                return f"Based on the uploaded knowledge, it mentions {rest}"
-
-        return f"Based on the uploaded knowledge, the relevant information is:\n\n{joined}"
-
-    def _embed(self, text: str) -> list[float]:
-        vector = [0.0] * self.dimensions
-        tokens = re.findall(r"[a-z0-9]+", text.lower())
-
-        for token in tokens:
-            digest = hashlib.sha256(token.encode("utf-8")).digest()
-            index = int.from_bytes(digest[:4], "big") % self.dimensions
-            sign = 1.0 if digest[4] % 2 == 0 else -1.0
-            vector[index] += sign
-
-        norm = math.sqrt(sum(value * value for value in vector))
-        if norm == 0:
-            return vector
-        return [value / norm for value in vector]
-
-
-class OpenAIProvider:
-    def __init__(self, api_key: str, embedding_model: str, chat_model: str):
-        self.api_key = api_key
+    def __init__(
+        self,
+        base_url: str,
+        embedding_model: str,
+        chat_model: str,
+    ):
+        self.base_url = base_url.rstrip("/")
         self.embedding_model = embedding_model
         self.chat_model = chat_model
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
+        embeddings = []
+
+        async with httpx.AsyncClient(timeout=60) as client:
+
+            for text in texts:
+
                 response = await client.post(
-                    "https://api.openai.com/v1/embeddings",
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    json={"model": self.embedding_model, "input": texts},
+                    f"{self.base_url}/api/embed",
+                    json={
+                        "model": self.embedding_model,
+                        "prompt": text,
+                    },
                 )
-        except httpx.HTTPError as exc:
-            raise ExternalServiceError("Could not reach embedding provider") from exc
 
-        if not response.is_success:
-            raise ExternalServiceError("Embedding provider rejected the request")
+                if not response.is_success:
+                    raise ExternalServiceError(
+                        "Ollama embedding request failed."
+                    )
 
-        body = response.json()
-        return [item["embedding"] for item in body["data"]]
+                embeddings.append(
+                    response.json()["embedding"]
+                )
 
-    async def generate_answer(self, question: str, context: list[str], tone: str) -> str:
+        return embeddings
+
+    async def generate_answer(
+        self,
+        question: str,
+        chatbot_name: str,
+        context: list[str],
+        tone: str,
+    ) -> str:
+
         if not context:
             return ""
 
-        try:
-            async with httpx.AsyncClient(timeout=45) as client:
-                response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    json={
-                        "model": self.chat_model,
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": (
-                                    "Answer customer questions using only the provided business knowledge. "
-                                    f"Use a {tone} tone. If the context is insufficient, say so briefly."
-                                ),
-                            },
-                            {"role": "user", "content": f"Question:\n{question}\n\nKnowledge:\n{chr(10).join(context)}"},
-                        ],
-                    },
+        prompt = f"""
+You are {chatbot_name}.
+
+Answer ONLY using the supplied business knowledge.
+
+Tone:
+{tone}
+
+If the answer cannot be found, simply say you don't know.
+
+Business Knowledge
+------------------
+
+{chr(10).join(context)}
+
+Question
+--------
+
+{question}
+"""
+
+        async with httpx.AsyncClient(timeout=180) as client:
+
+            response = await client.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.chat_model,
+                    "prompt": prompt,
+                    "stream": False,
+                },
+            )
+
+            if not response.is_success:
+                raise ExternalServiceError(
+                    "Ollama generation failed."
                 )
-        except httpx.HTTPError as exc:
-            raise ExternalServiceError("Could not reach answer provider") from exc
 
-        if not response.is_success:
-            raise ExternalServiceError("Answer provider rejected the request")
-
-        return response.json()["choices"][0]["message"]["content"].strip()
-
-
-def get_ai_provider() -> AIProvider:
-    if settings.AI_PROVIDER == "local":
-        return LocalAIProvider(settings.AI_EMBEDDING_DIMENSIONS)
-
-    if not settings.OPENAI_API_KEY:
-        raise ValidationError("OPENAI_API_KEY is required when AI_PROVIDER=openai")
-
-    return OpenAIProvider(
-        settings.OPENAI_API_KEY,
-        settings.OPENAI_EMBEDDING_MODEL,
-        settings.OPENAI_CHAT_MODEL,
-    )
+            return response.json()["response"].strip()
+        
+        

@@ -1,5 +1,6 @@
 """Storage adapter for raw knowledge uploads."""
 
+import asyncio
 import re
 from pathlib import Path
 from uuid import UUID
@@ -14,20 +15,33 @@ class LocalKnowledgeStorage:
     async def save(self, chatbot_id: UUID, document_id: UUID, filename: str, data: bytes) -> str:
         safe_name = self._safe_filename(filename)
         directory = self.root / str(chatbot_id) / str(document_id)
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / safe_name
-        path.write_bytes(data)
-        return str(path)
+
+        def _write() -> str:
+            directory.mkdir(parents=True, exist_ok=True)
+            path = directory / safe_name
+            path.write_bytes(data)
+            return str(path)
+
+        return await asyncio.to_thread(_write)
 
     async def read(self, storage_path: str) -> bytes:
-        return Path(storage_path).read_bytes()
+        return await asyncio.to_thread(Path(storage_path).read_bytes)
 
     async def delete(self, storage_path: str | None) -> None:
         if not storage_path:
             return
-        path = Path(storage_path)
-        if path.exists():
-            path.unlink()
+
+        def _delete() -> None:
+            path = Path(storage_path)
+            if path.exists():
+                path.unlink()
+            # Best-effort cleanup of the now-empty per-document directory.
+            try:
+                path.parent.rmdir()
+            except OSError:
+                pass  # not empty, or already gone - either is fine here
+
+        await asyncio.to_thread(_delete)
 
     def _safe_filename(self, filename: str) -> str:
         name = Path(filename).name.strip() or "document.txt"

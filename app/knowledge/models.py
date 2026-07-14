@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,7 +14,12 @@ from app.knowledge.vector import Vector
 
 class KnowledgeDocument(Base):
     __tablename__ = "knowledge_documents"
-    __table_args__ = {"schema": "public"}
+    __table_args__ = (
+        # Lets sweep_stuck_documents (tasks.py) find rows by status without
+        # a full table scan once this table has real volume.
+        Index("ix_knowledge_documents_status", "status"),
+        {"schema": "public"},
+    )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     chatbot_id: Mapped[UUID] = mapped_column(
@@ -31,6 +36,7 @@ class KnowledgeDocument(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     character_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

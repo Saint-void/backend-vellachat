@@ -1,5 +1,6 @@
 """Data access for knowledge documents and vector chunks."""
 
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, text
@@ -26,13 +27,25 @@ class KnowledgeRepository:
         source_type: str,
         mime_type: str | None = None,
         storage_path: str | None = None,
+        file_size: int = 0,
+        document_id: UUID | None = None,
     ) -> KnowledgeDocument:
+        """Create the document row.
+
+        Callers that write a file to storage should generate the id up
+        front, save the file, and only call this once the write succeeds
+        (passing storage_path + document_id) - see KnowledgeService. That
+        ordering means we never commit a row pointing at a file that never
+        made it to disk.
+        """
         document = KnowledgeDocument(
+            id=document_id or uuid4(),
             chatbot_id=chatbot_id,
             name=name,
             source_type=source_type,
             mime_type=mime_type,
             storage_path=storage_path,
+            file_size=file_size,
             status="uploaded",
         )
         self.db.add(document)
@@ -94,13 +107,48 @@ class KnowledgeRepository:
         await self.db.delete(document)
         await self.db.commit()
 
+    async def list_stuck_processing(self, older_than: datetime) -> list[KnowledgeDocument]:
+        """Documents still 'processing' since before `older_than`.
+
+        `updated_at` gets bumped by mark_processing()'s commit, so it
+        doubles as "when processing started" - no extra column needed.
+        Used by tasks.sweep_stuck_documents to recover from a Render
+        restart/crash that killed an in-flight background task.
+        """
+        result = await self.db.execute(
+            select(KnowledgeDocument).where(
+                KnowledgeDocument.status == "processing",
+                KnowledgeDocument.updated_at < older_than,
+            )
+        )
+        return list(result.scalars().all())
+
     async def replace_chunks(self, document: KnowledgeDocument, chunks: list[str], embeddings: list[list[float]]) -> None:
         await self.db.execute(
             text("DELETE FROM public.knowledge_chunks WHERE document_id = :document_id"),
             {"document_id": str(document.id)},
         )
 
-        for index, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+        if chunks:
+            rows = [
+                {
+                    "id": str(uuid4()),
+                    "document_id": str(document.id),
+                    "chatbot_id": str(document.chatbot_id),
+                    "chunk_index": index,
+                    "content": chunk,
+                    # NOTE: word count, not a real tokenizer count. Fine as
+                    # a rough size signal, but don't use it to budget an
+                    # actual model context window.
+                    "token_count": len(chunk.split()),
+                    "embedding": self._vector_literal(embedding),
+                }
+                for index, (chunk, embedding) in enumerate(zip(chunks, embeddings))
+            ]
+            # One execute() with a list of params batches this as a single
+            # round trip instead of one INSERT per chunk - matters once a
+            # document produces 50-100+ chunks, and is gentler on pgbouncer
+            # than issuing that many separate statements.
             await self.db.execute(
                 text(
                     """
@@ -112,15 +160,7 @@ class KnowledgeRepository:
                     )
                     """
                 ),
-                {
-                    "id": str(uuid4()),
-                    "document_id": str(document.id),
-                    "chatbot_id": str(document.chatbot_id),
-                    "chunk_index": index,
-                    "content": chunk,
-                    "token_count": len(chunk.split()),
-                    "embedding": self._vector_literal(embedding),
-                },
+                rows,
             )
 
         await self.db.commit()

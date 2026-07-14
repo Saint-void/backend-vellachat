@@ -53,6 +53,7 @@ async def upload_document(
     return document
 
 
+# router.py — one-line change
 @router.post("/documents/{document_id}/reprocess", response_model=KnowledgeDocumentRead)
 async def reprocess_document(
     chatbot_id: UUID,
@@ -61,7 +62,7 @@ async def reprocess_document(
     current_user: CurrentUser = Depends(get_current_user),
     service: KnowledgeService = Depends(get_knowledge_service),
 ):
-    document = await service.get_document(chatbot_id, document_id, current_user.id)
+    document = await service.reprocess_document(chatbot_id, document_id, current_user.id)
     background_tasks.add_task(process_knowledge_document, document.id)
     return document
 

@@ -30,6 +30,7 @@ class KnowledgeDocumentRead(BaseModel):
     error_message: str | None
     character_count: int
     chunk_count: int
+    file_size: int
     created_at: datetime
     updated_at: datetime
 

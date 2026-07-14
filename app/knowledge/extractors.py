@@ -1,9 +1,12 @@
 """Text extraction for supported knowledge document types."""
 
+import logging
 from io import BytesIO
 from pathlib import Path
 
 from app.core.exceptions import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeTextExtractor:
@@ -35,7 +38,22 @@ class KnowledgeTextExtractor:
             raise ValidationError("PDF support requires the pypdf package") from exc
 
         reader = PdfReader(BytesIO(data))
-        text = "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        pages: list[str] = []
+        failed_pages = 0
+
+        for index, page in enumerate(reader.pages):
+            try:
+                pages.append(page.extract_text() or "")
+            except Exception:
+                # Some malformed pages raise instead of returning "".
+                # Skip the page instead of failing the whole document.
+                failed_pages += 1
+                logger.warning("Failed to extract text from PDF page %d", index)
+
+        if failed_pages:
+            logger.warning("%d of %d PDF pages could not be read", failed_pages, len(reader.pages))
+
+        text = "\n".join(pages).strip()
         if not text:
             raise ValidationError("No readable text was found in this PDF")
         return text
@@ -47,7 +65,17 @@ class KnowledgeTextExtractor:
             raise ValidationError("DOCX support requires the python-docx package") from exc
 
         document = Document(BytesIO(data))
-        text = "\n".join(paragraph.text for paragraph in document.paragraphs).strip()
+        parts = [paragraph.text for paragraph in document.paragraphs]
+
+        # document.paragraphs does NOT include table content - without this,
+        # any spec sheet / pricing table in a DOCX gets silently dropped.
+        for table in document.tables:
+            for row in table.rows:
+                cells = [cell.text.strip() for cell in row.cells]
+                if any(cells):
+                    parts.append(" | ".join(cells))
+
+        text = "\n".join(part for part in parts if part.strip()).strip()
         if not text:
             raise ValidationError("No readable text was found in this DOCX file")
         return text
