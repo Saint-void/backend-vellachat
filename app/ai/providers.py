@@ -41,7 +41,26 @@ class LocalAIProvider:
         if len(joined) > 1200:
             joined = f"{joined[:1200].rsplit(' ', 1)[0]}..."
 
+        normalized_question = question.strip()
+        if normalized_question:
+            return self._build_local_answer(joined)
+
         return f"Based on the uploaded knowledge, here is what I found:\n\n{joined}"
+
+    def _build_local_answer(self, joined: str) -> str:
+        cleaned = joined.strip()
+        normalized = re.sub(r"\s+", " ", cleaned)
+        for prefix in (
+            "the document mentions",
+            "this document mentions",
+            "the uploaded knowledge mentions",
+            "it mentions",
+        ):
+            if normalized.lower().startswith(prefix):
+                rest = normalized[len(prefix):].strip()
+                return f"Based on the uploaded knowledge, it mentions {rest}"
+
+        return f"Based on the uploaded knowledge, the relevant information is:\n\n{joined}"
 
     def _embed(self, text: str) -> list[float]:
         vector = [0.0] * self.dimensions
