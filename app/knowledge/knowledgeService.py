@@ -6,13 +6,13 @@ from uuid import UUID, uuid4
 
 from fastapi import UploadFile
 
-from app.chatbot.models import Chatbot
-from app.core.config import settings
-from app.core.exceptions import NotFoundError, ValidationError
-from app.knowledge.models import KnowledgeDocument
-from app.knowledge.repository import KnowledgeRepository
-from app.knowledge.schemas import KnowledgeTextCreate
-from app.knowledge.storage import get_knowledge_storage
+from app.chatbot.chatbotModels import Chatbot
+from app.core.coreConfig import settings
+from app.core.coreExceptions import NotFoundError, ValidationError
+from app.knowledge.knowledgeModels import KnowledgeDocument
+from app.knowledge.knowledgeRepository import KnowledgeRepository
+from app.knowledge.knowledgeSchemas import KnowledgeTextCreate
+from app.knowledge.knowledgeStorage import get_knowledge_storage
 
 logger = logging.getLogger(__name__)
 

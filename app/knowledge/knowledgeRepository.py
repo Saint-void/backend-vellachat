@@ -6,8 +6,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.chatbot.models import Chatbot
-from app.knowledge.models import KnowledgeDocument
+from app.chatbot.chatbotModels import Chatbot
+from app.knowledge.knowledgeModels import KnowledgeDocument
 
 
 class KnowledgeRepository:

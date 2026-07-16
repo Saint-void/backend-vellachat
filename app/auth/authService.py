@@ -2,8 +2,8 @@
 
 from uuid import UUID
 
-from app.auth.repository import ProfileRepository
-from app.auth.schemas import ProfileUpdate
+from app.auth.authRepository import ProfileRepository
+from app.auth.authSchemas import ProfileUpdate
 
 
 class ProfileService:

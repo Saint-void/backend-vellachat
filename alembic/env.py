@@ -16,15 +16,15 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.core.config import settings
-from app.database.base import Base
+from app.core.coreConfig import settings
+from app.database.databaseBase import Base
 
 # Import every module's models here so Base.metadata knows about them
 # for autogenerate.
-from app.auth.models import Profile  # noqa
-from app.chatbot.models import Chatbot, ChatbotFAQ  # noqa
-from app.knowledge.models import KnowledgeChunk, KnowledgeDocument  # noqa
-from app.widget.models import WidgetConversation, WidgetMessage  # noqa
+from app.auth.authModels import Profile  # noqa
+from app.chatbot.chatbotModels import Chatbot  # noqa
+from app.knowledge.knowledgeModels import KnowledgeChunk, KnowledgeDocument  # noqa
+from app.widget.widgetModels import WidgetConversation, WidgetMessage  # noqa
 
 config = context.config
 

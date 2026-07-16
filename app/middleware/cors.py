@@ -16,7 +16,7 @@ Don't try to solve that here.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
+from app.core.coreConfig import settings
 
 
 def add_cors_middleware(app: FastAPI) -> None:

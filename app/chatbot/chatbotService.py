@@ -2,16 +2,15 @@
 
 from uuid import UUID
 
-from app.chatbot.models import Chatbot
-from app.chatbot.repository import ChatbotRepository
-from app.chatbot.schemas import ChatbotCreate, ChatbotFAQCreate, ChatbotFAQUpdate, ChatbotUpdate
-from app.core.exceptions import NotFoundError, ValidationError
+from app.chatbot.chatbotModels import Chatbot
+from app.chatbot.chatbotRepository import ChatbotRepository
+from app.chatbot.chatbotSchemas import ChatbotCreate,ChatbotUpdate
+from app.core.coreExceptions import NotFoundError, ValidationError
 
 
 class ChatbotService:
     allowed_statuses = {"draft", "active", "paused", "archived"}
     required_chatbot_fields = {"name", "business_name", "tone", "greeting_message", "brand_color", "status"}
-    required_faq_fields = {"question", "answer"}
 
     def __init__(self, repository: ChatbotRepository):
         self.repository = repository
@@ -44,30 +43,4 @@ class ChatbotService:
         chatbot = await self.get_chatbot(chatbot_id, owner_id)
         await self.repository.delete(chatbot)
 
-    async def create_faq(self, chatbot_id: UUID, owner_id: UUID, data: ChatbotFAQCreate):
-        chatbot = await self.get_chatbot(chatbot_id, owner_id)
-        return await self.repository.create_faq(chatbot.id, **data.model_dump())
-
-    async def list_faqs(self, chatbot_id: UUID, owner_id: UUID):
-        chatbot = await self.get_chatbot(chatbot_id, owner_id)
-        return await self.repository.list_faqs(chatbot.id)
-
-    async def update_faq(self, chatbot_id: UUID, faq_id: UUID, owner_id: UUID, data: ChatbotFAQUpdate):
-        chatbot = await self.get_chatbot(chatbot_id, owner_id)
-        faq = await self.repository.get_faq_by_id(faq_id, chatbot.id)
-        if faq is None:
-            raise NotFoundError("FAQ not found")
-
-        fields = data.model_dump(exclude_unset=True)
-        if any(field in fields and fields[field] is None for field in self.required_faq_fields):
-            raise ValidationError("FAQ question and answer cannot be blank")
-
-        return await self.repository.update_faq(faq, **fields)
-
-    async def delete_faq(self, chatbot_id: UUID, faq_id: UUID, owner_id: UUID) -> None:
-        chatbot = await self.get_chatbot(chatbot_id, owner_id)
-        faq = await self.repository.get_faq_by_id(faq_id, chatbot.id)
-        if faq is None:
-            raise NotFoundError("FAQ not found")
-
-        await self.repository.delete_faq(faq)
+    

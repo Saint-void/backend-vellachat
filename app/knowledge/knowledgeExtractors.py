@@ -4,7 +4,7 @@ import logging
 from io import BytesIO
 from pathlib import Path
 
-from app.core.exceptions import ValidationError
+from app.core.coreExceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 

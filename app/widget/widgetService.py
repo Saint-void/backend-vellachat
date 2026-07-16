@@ -1,17 +1,15 @@
 """Business logic for the public widget runtime."""
 
-import re
-from difflib import SequenceMatcher
 from urllib.parse import urlparse
 from uuid import UUID
 
-from app.chatbot.models import Chatbot, ChatbotFAQ
-from app.core.exceptions import ForbiddenError, NotFoundError, ValidationError
-from app.knowledge.repository import KnowledgeRepository
-from app.knowledge.retrieval import KnowledgeRetriever
-from app.widget.models import WidgetConversation
-from app.widget.repository import WidgetRepository
-from app.widget.schemas import (
+from app.chatbot.chatbotModels import Chatbot
+from app.core.coreExceptions import ForbiddenError, NotFoundError, ValidationError
+from app.knowledge.knowledgeRepository import KnowledgeRepository
+from app.knowledge.knowledgeRetrieval import KnowledgeRetriever
+from app.widget.widgetModels import WidgetConversation
+from app.widget.widgetRepository import WidgetRepository
+from app.widget.widgetSchemas import (
     WidgetConfigRead,
     WidgetConversationCreate,
     WidgetConversationRead,
@@ -20,39 +18,12 @@ from app.widget.schemas import (
     WidgetSendMessageRead,
 )
 
-STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "are",
-    "as",
-    "at",
-    "be",
-    "can",
-    "do",
-    "for",
-    "from",
-    "how",
-    "i",
-    "in",
-    "is",
-    "it",
-    "of",
-    "on",
-    "or",
-    "our",
-    "should",
-    "the",
-    "to",
-    "we",
-    "what",
-    "when",
-    "where",
-    "who",
-    "why",
-    "you",
-    "your",
-}
+
+# Below this many raw words, a message is treated as too low-signal to be
+# worth an embedding call - e.g. a bare name, "hi", "ok". Adjust once you've
+# watched real top_similarity / row_count logs from KnowledgeRetriever; this
+# is a starting guess, not a tuned value.
+MIN_WORDS_FOR_RETRIEVAL = 2
 
 
 class WidgetService:
@@ -105,12 +76,11 @@ class WidgetService:
             raise ValidationError("Message cannot be empty")
 
         visitor_message = await self.repository.create_message(conversation, "visitor", content)
-        reply_text, matched_faq = await self._build_reply(chatbot, content)
+        reply_text = await self._build_reply(chatbot, content)
         assistant_message = await self.repository.create_message(
             conversation,
             "assistant",
             reply_text,
-            matched_faq.id if matched_faq else None,
         )
 
         return WidgetSendMessageRead(
@@ -138,47 +108,22 @@ class WidgetService:
 
         return WidgetConversationRead.model_validate(conversation_data)
 
-    async def _build_reply(self, chatbot: Chatbot, content: str) -> tuple[str, ChatbotFAQ | None]:
-        faqs = await self.repository.list_enabled_faqs(chatbot.id)
-        best_faq = self._best_faq(content, faqs)
-
-        if best_faq:
-            return best_faq.answer.strip(), best_faq
+    async def _build_reply(self, chatbot: Chatbot, content: str) -> str:
+        # Skip the embedding + generation round-trip entirely for messages
+        # too short to be a real question ("Donaldson", "hi", "ok").
+        if self._is_low_signal(content):
+            return self._fallback_reply(chatbot)
 
         knowledge_answer, _matches = await KnowledgeRetriever(
             KnowledgeRepository(self.repository.db)
-        ).answer_from_knowledge(chatbot.id, content, chatbot.tone)
+        ).answer_from_knowledge(chatbot.id, chatbot.name, content, chatbot.tone)
         if knowledge_answer:
-            return knowledge_answer.strip(), None
+            return knowledge_answer.strip()
 
-        fallback = self._fallback_reply(chatbot)
-        return fallback, None
+        return self._fallback_reply(chatbot)
 
-    def _best_faq(self, content: str, faqs: list[ChatbotFAQ]) -> ChatbotFAQ | None:
-        if not faqs:
-            return None
-
-        normalized_content = self._normalize(content)
-        content_tokens = set(self._tokenize(normalized_content))
-        best_score = 0.0
-        best_faq: ChatbotFAQ | None = None
-
-        for faq in faqs:
-            question = self._normalize(faq.question)
-            question_tokens = set(self._tokenize(question))
-            if not question_tokens:
-                continue
-
-            overlap = len(content_tokens & question_tokens) / len(question_tokens)
-            sequence = SequenceMatcher(None, normalized_content, question).ratio()
-            containment = 1.0 if normalized_content in question or question in normalized_content else 0.0
-            score = (overlap * 0.55) + (sequence * 0.35) + (containment * 0.10)
-
-            if score > best_score:
-                best_score = score
-                best_faq = faq
-
-        return best_faq if best_score >= 0.32 else None
+    def _is_low_signal(self, content: str) -> bool:
+        return len(content.split()) < MIN_WORDS_FOR_RETRIEVAL and not content.rstrip().endswith("?")
 
     def _fallback_reply(self, chatbot: Chatbot) -> str:
         if chatbot.handoff_email:
@@ -284,9 +229,3 @@ class WidgetService:
         if scheme == "https":
             return 443
         return None
-
-    def _normalize(self, text: str) -> str:
-        return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", text.lower())).strip()
-
-    def _tokenize(self, text: str) -> list[str]:
-        return [token for token in text.split() if token and token not in STOPWORDS]

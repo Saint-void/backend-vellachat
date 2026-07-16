@@ -6,7 +6,7 @@ Run from a Render Cron Job, not from an HTTP route:
 
 import asyncio
 
-from app.knowledge.tasks import sweep_stuck_documents
+from app.knowledge.knowledgeTasks import sweep_stuck_documents
 
 
 async def main() -> None:

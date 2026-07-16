@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.chatbot.models import Chatbot, ChatbotFAQ
+from app.chatbot.chatbotModels import Chatbot
 
 
 class ChatbotRepository:
@@ -40,34 +40,4 @@ class ChatbotRepository:
 
     async def delete(self, chatbot: Chatbot) -> None:
         await self.db.delete(chatbot)
-        await self.db.commit()
-
-    async def create_faq(self, chatbot_id: UUID, **fields) -> ChatbotFAQ:
-        faq = ChatbotFAQ(chatbot_id=chatbot_id, **fields)
-        self.db.add(faq)
-        await self.db.commit()
-        await self.db.refresh(faq)
-        return faq
-
-    async def list_faqs(self, chatbot_id: UUID) -> list[ChatbotFAQ]:
-        result = await self.db.execute(
-            select(ChatbotFAQ).where(ChatbotFAQ.chatbot_id == chatbot_id).order_by(ChatbotFAQ.created_at.desc())
-        )
-        return list(result.scalars().all())
-
-    async def get_faq_by_id(self, faq_id: UUID, chatbot_id: UUID) -> ChatbotFAQ | None:
-        result = await self.db.execute(
-            select(ChatbotFAQ).where(ChatbotFAQ.id == faq_id, ChatbotFAQ.chatbot_id == chatbot_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def update_faq(self, faq: ChatbotFAQ, **fields) -> ChatbotFAQ:
-        for key, value in fields.items():
-            setattr(faq, key, value)
-        await self.db.commit()
-        await self.db.refresh(faq)
-        return faq
-
-    async def delete_faq(self, faq: ChatbotFAQ) -> None:
-        await self.db.delete(faq)
         await self.db.commit()

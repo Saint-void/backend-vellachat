@@ -35,8 +35,7 @@ def upgrade() -> None:
         """
         CREATE TABLE public.widget_messages (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            conversation_id UUID NOT NULL REFERENCES public.widget_conversations(id) ON DELETE CASCADE,
-            matched_faq_id UUID REFERENCES public.chatbot_faqs(id) ON DELETE SET NULL,
+            conversation_id UUID NOT NULL REFERENCES public.widget_conversations(id) ON DELETE CASCADE
             role VARCHAR(30) NOT NULL,
             content TEXT NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()

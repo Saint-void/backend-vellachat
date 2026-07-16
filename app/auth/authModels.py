@@ -16,7 +16,7 @@ from sqlalchemy import DateTime, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database.base import Base
+from app.database.databaseBase import Base
 
 
 class Profile(Base):

@@ -7,7 +7,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database.base import Base
+from app.database.databaseBase import Base
 
 
 class WidgetConversation(Base):
@@ -46,12 +46,6 @@ class WidgetMessage(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("public.widget_conversations.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
-    )
-    matched_faq_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("public.chatbot_faqs.id", ondelete="SET NULL"),
-        nullable=True,
         index=True,
     )
     role: Mapped[str] = mapped_column(String(30), nullable=False)

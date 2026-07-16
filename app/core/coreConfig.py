@@ -53,10 +53,16 @@ class Settings(BaseSettings):
     SUPABASE_PUBLISHABLE_KEY: str
 
     # --- AI ---
-    # local keeps development and tests deterministic. Set to "openai"
-    # in production once OPENAI_API_KEY is configured.
-    AI_PROVIDER: str = Field(default="local", pattern="^(local|openai)$")
-    AI_EMBEDDING_DIMENSIONS: int = 1536
+    # "ollama" for local development, "openai" for production.
+    AI_PROVIDER: str = Field(default="ollama", pattern="^(ollama|openai)$")
+    AI_EMBEDDING_DIMENSIONS: int = 768
+
+    # Ollama (local)
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_CHAT_MODEL: str = "qwen2.5:3b"
+    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+
+    # OpenAI
     OPENAI_API_KEY: str | None = None
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     OPENAI_CHAT_MODEL: str = "gpt-4o-mini"

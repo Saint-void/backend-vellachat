@@ -6,8 +6,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.chatbot.models import Chatbot, ChatbotFAQ
-from app.widget.models import WidgetConversation, WidgetMessage
+from app.chatbot.chatbotModels import Chatbot
+from app.widget.widgetModels import WidgetConversation, WidgetMessage
 
 
 class WidgetRepository:
@@ -17,14 +17,6 @@ class WidgetRepository:
     async def get_chatbot(self, chatbot_id: UUID) -> Chatbot | None:
         result = await self.db.execute(select(Chatbot).where(Chatbot.id == chatbot_id))
         return result.scalar_one_or_none()
-
-    async def list_enabled_faqs(self, chatbot_id: UUID) -> list[ChatbotFAQ]:
-        result = await self.db.execute(
-            select(ChatbotFAQ)
-            .where(ChatbotFAQ.chatbot_id == chatbot_id, ChatbotFAQ.is_enabled.is_(True))
-            .order_by(ChatbotFAQ.created_at.asc())
-        )
-        return list(result.scalars().all())
 
     async def create_conversation(self, chatbot_id: UUID, site_origin: str, visitor_id: str | None) -> WidgetConversation:
         conversation = WidgetConversation(chatbot_id=chatbot_id, site_origin=site_origin, visitor_id=visitor_id)
@@ -54,14 +46,12 @@ class WidgetRepository:
         self,
         conversation: WidgetConversation,
         role: str,
-        content: str,
-        matched_faq_id: UUID | None = None,
+        content: str
     ) -> WidgetMessage:
         message = WidgetMessage(
             conversation_id=conversation.id,
             role=role,
-            content=content,
-            matched_faq_id=matched_faq_id,
+            content=content
         )
         conversation.updated_at = datetime.now(timezone.utc)
         self.db.add(message)

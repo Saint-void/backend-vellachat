@@ -23,8 +23,8 @@ import jwt
 from fastapi import Header
 from jwt import PyJWKClient
 
-from app.core.config import settings
-from app.core.exceptions import UnauthorizedError
+from app.core.coreConfig import settings
+from app.core.coreExceptions import UnauthorizedError
 
 # lifespan=600 matches the ~10 minute edge cache Supabase itself puts
 # in front of the JWKS endpoint -- no point re-fetching more often

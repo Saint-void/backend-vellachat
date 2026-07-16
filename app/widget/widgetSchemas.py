@@ -36,7 +36,6 @@ class WidgetMessageRead(BaseModel):
     id: UUID
     role: str
     content: str
-    matched_faq_id: UUID | None
     created_at: datetime
 
 

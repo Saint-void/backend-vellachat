@@ -5,9 +5,9 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.auth.dependencies import CurrentUser, get_current_user
-from app.auth.repository import ProfileRepository
-from app.auth.schemas import (
+from app.auth.authDependencies import CurrentUser, get_current_user
+from app.auth.authRepository import ProfileRepository
+from app.auth.authSchemas import (
     AuthSessionRead,
     LoginRequest,
     OAuthAuthorizeUrlRead,
@@ -15,8 +15,8 @@ from app.auth.schemas import (
     ProfileUpdate,
     SignupRequest,
 )
-from app.auth.service import ProfileService
-from app.auth.supabase import supabase_auth
+from app.auth.authService import ProfileService
+from app.auth.authSupabase import supabase_auth
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

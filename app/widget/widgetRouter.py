@@ -6,15 +6,15 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.widget.repository import WidgetRepository
-from app.widget.schemas import (
+from app.widget.widgetRepository import WidgetRepository
+from app.widget.widgetSchemas import (
     WidgetConfigRead,
     WidgetConversationCreate,
     WidgetConversationRead,
     WidgetMessageCreate,
     WidgetSendMessageRead,
 )
-from app.widget.service import WidgetService
+from app.widget.widgetService import WidgetService
 
 router = APIRouter(prefix="/widget", tags=["widget"])
 

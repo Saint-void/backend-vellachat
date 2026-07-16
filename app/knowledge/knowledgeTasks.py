@@ -4,12 +4,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from app.ai.providers import get_ai_provider
-from app.database.session import AsyncSessionLocal
-from app.knowledge.chunking import TextChunker
-from app.knowledge.extractors import KnowledgeTextExtractor
-from app.knowledge.repository import KnowledgeRepository
-from app.knowledge.storage import get_knowledge_storage
+from app.ai.aiProviders import get_ai_provider
+from app.database.databaseSession import AsyncSessionLocal
+from app.knowledge.knowledgeChunking import TextChunker
+from app.knowledge.knowledgeExtractors import KnowledgeTextExtractor
+from app.knowledge.knowledgeRepository import KnowledgeRepository
+from app.knowledge.knowledgeStorage import get_knowledge_storage
 
 logger = logging.getLogger(__name__)
 

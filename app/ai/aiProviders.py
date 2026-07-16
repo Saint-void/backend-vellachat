@@ -2,8 +2,10 @@ from typing import Protocol
 
 import httpx
 
-from app.core.config import settings
-from app.core.exceptions import ExternalServiceError
+from app.core.coreConfig import settings
+from app.core.coreExceptions import ExternalServiceError
+
+NO_MATCH_SENTINEL = "NO_MATCH"
 
 
 class AIProvider(Protocol):
@@ -18,6 +20,23 @@ class AIProvider(Protocol):
         tone: str,
     ) -> str:
         ...
+
+
+_provider: AIProvider | None = None
+
+
+def get_ai_provider() -> AIProvider:
+    global _provider
+    if _provider is None:
+        if settings.AI_PROVIDER == "ollama":
+            _provider = OllamaProvider(
+                base_url=settings.OLLAMA_BASE_URL,
+                embedding_model=settings.OLLAMA_EMBED_MODEL,
+                chat_model=settings.OLLAMA_CHAT_MODEL,
+            )
+        else:
+            raise ValueError(f"Unknown AI provider: {settings.AI_PROVIDER}")
+    return _provider
 
 
 class OllamaProvider:
@@ -56,7 +75,7 @@ class OllamaProvider:
                     f"{self.base_url}/api/embed",
                     json={
                         "model": self.embedding_model,
-                        "prompt": text,
+                        "input": text,
                     },
                 )
 
@@ -65,9 +84,8 @@ class OllamaProvider:
                         "Ollama embedding request failed."
                     )
 
-                embeddings.append(
-                    response.json()["embedding"]
-                )
+                data = response.json()
+                embeddings.append(data["embeddings"][0])
 
         return embeddings
 
@@ -82,15 +100,21 @@ class OllamaProvider:
         if not context:
             return ""
 
+        # NOTE: the model itself now owns the "can I answer this" decision.
+        # It must emit NO_MATCH_SENTINEL exactly (nothing else on that line)
+        # when the supplied context doesn't cover the question. Retrieval no
+        # longer relies solely on a similarity-score cutoff to make that call
+        # - see app/knowledge/retrieval.py.
         prompt = f"""
 You are {chatbot_name}.
 
-Answer ONLY using the supplied business knowledge.
+Answer ONLY using the supplied business knowledge below.
+
+If, and only if, the business knowledge does not contain the answer,
+respond with exactly this and nothing else: {NO_MATCH_SENTINEL}
 
 Tone:
 {tone}
-
-If the answer cannot be found, simply say you don't know.
 
 Business Knowledge
 ------------------
@@ -120,5 +144,3 @@ Question
                 )
 
             return response.json()["response"].strip()
-        
-        

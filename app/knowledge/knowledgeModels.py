@@ -7,9 +7,9 @@ from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.config import settings
-from app.database.base import Base
-from app.knowledge.vector import Vector
+from app.core.coreConfig import settings
+from app.database.databaseBase import Base
+from app.knowledge.knowledgeVector import Vector
 
 
 class KnowledgeDocument(Base):

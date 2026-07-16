@@ -5,9 +5,9 @@ from urllib.parse import urlencode
 
 import httpx
 
-from app.auth.schemas import AuthSessionRead, AuthUserRead, LoginRequest, SignupRequest
-from app.core.config import settings
-from app.core.exceptions import ExternalServiceError, UnauthorizedError, ValidationError
+from app.auth.authSchemas import AuthSessionRead, AuthUserRead, LoginRequest, SignupRequest
+from app.core.coreConfig import settings
+from app.core.coreExceptions import ExternalServiceError, UnauthorizedError, ValidationError
 
 
 class SupabaseAuthClient:

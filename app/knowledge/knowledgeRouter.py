@@ -6,10 +6,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Response, UploadF
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_current_user, get_db
-from app.knowledge.repository import KnowledgeRepository
-from app.knowledge.schemas import KnowledgeDocumentRead, KnowledgeTextCreate
-from app.knowledge.service import KnowledgeService
-from app.knowledge.tasks import process_knowledge_document
+from app.knowledge.knowledgeRepository import KnowledgeRepository
+from app.knowledge.knowledgeSchemas import KnowledgeDocumentRead, KnowledgeTextCreate
+from app.knowledge.knowledgeService import KnowledgeService
+from app.knowledge.knowledgeTasks import process_knowledge_document
 
 router = APIRouter(prefix="/chatbots/{chatbot_id}/knowledge", tags=["knowledge"])
 

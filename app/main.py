@@ -10,19 +10,19 @@ that logic is in the wrong place.
 from fastapi import FastAPI
 
 from app.api.v1.health import router as health_router
-from app.auth.router import router as auth_router
-from app.chatbot.router import router as chatbot_router
-from app.core.config import settings
-from app.core.exceptions import (
+from app.auth.authAuthrouter import router as auth_router
+from app.chatbot.chatbotRouter import router as chatbot_router
+from app.core.coreConfig import settings
+from app.core.coreExceptions import (
     AppException,
     app_exception_handler,
     unhandled_exception_handler,
 )
-from app.core.logging_config import configure_logging
+from app.core.coreLogging_config import configure_logging
 from app.middleware.cors import add_cors_middleware
 from app.middleware.request_logging import RequestLoggingMiddleware
-from app.knowledge.router import router as knowledge_router
-from app.widget.router import router as widget_router
+from app.knowledge.knowledgeRouter import router as knowledge_router
+from app.widget.widgetRouter import router as widget_router
 
 configure_logging()
 

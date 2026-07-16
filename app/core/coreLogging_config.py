@@ -11,7 +11,7 @@ import json
 import logging
 import sys
 
-from app.core.config import settings
+from app.core.coreConfig import settings
 
 
 class JSONFormatter(logging.Formatter):

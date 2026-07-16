@@ -6,16 +6,13 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, get_current_user, get_db
-from app.chatbot.repository import ChatbotRepository
-from app.chatbot.schemas import (
+from app.chatbot.chatbotRepository import ChatbotRepository
+from app.chatbot.chatbotSchemas import (
     ChatbotCreate,
-    ChatbotFAQCreate,
-    ChatbotFAQRead,
-    ChatbotFAQUpdate,
     ChatbotRead,
     ChatbotUpdate,
 )
-from app.chatbot.service import ChatbotService
+from app.chatbot.chatbotService import ChatbotService
 
 router = APIRouter(prefix="/chatbots", tags=["chatbots"])
 
@@ -67,45 +64,4 @@ async def delete_chatbot(
     service: ChatbotService = Depends(get_chatbot_service),
 ):
     await service.delete_chatbot(chatbot_id, current_user.id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post("/{chatbot_id}/faqs", response_model=ChatbotFAQRead, status_code=status.HTTP_201_CREATED)
-async def create_faq(
-    chatbot_id: UUID,
-    data: ChatbotFAQCreate,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: ChatbotService = Depends(get_chatbot_service),
-):
-    return await service.create_faq(chatbot_id, current_user.id, data)
-
-
-@router.get("/{chatbot_id}/faqs", response_model=list[ChatbotFAQRead])
-async def list_faqs(
-    chatbot_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: ChatbotService = Depends(get_chatbot_service),
-):
-    return await service.list_faqs(chatbot_id, current_user.id)
-
-
-@router.patch("/{chatbot_id}/faqs/{faq_id}", response_model=ChatbotFAQRead)
-async def update_faq(
-    chatbot_id: UUID,
-    faq_id: UUID,
-    data: ChatbotFAQUpdate,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: ChatbotService = Depends(get_chatbot_service),
-):
-    return await service.update_faq(chatbot_id, faq_id, current_user.id, data)
-
-
-@router.delete("/{chatbot_id}/faqs/{faq_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_faq(
-    chatbot_id: UUID,
-    faq_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
-    service: ChatbotService = Depends(get_chatbot_service),
-):
-    await service.delete_faq(chatbot_id, faq_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

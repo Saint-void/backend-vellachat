@@ -8,7 +8,7 @@ indirection is what keeps auth swappable later without touching every
 other module.
 """
 
-from app.auth.dependencies import CurrentUser, get_current_user
-from app.database.session import get_db
+from app.auth.authDependencies import CurrentUser, get_current_user
+from app.database.databaseSession import get_db
 
 __all__ = ["get_db", "get_current_user", "CurrentUser"]
