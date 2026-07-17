@@ -60,3 +60,15 @@ async def send_message(
     service: WidgetService = Depends(get_widget_service),
 ):
     return await service.send_message(chatbot_id, conversation_id, data)
+
+
+@router.post("/{chatbot_id}/conversations/{conversation_id}/close", response_model=WidgetConversationRead)
+async def close_conversation(
+    chatbot_id: UUID,
+    conversation_id: UUID,
+    site_origin: str,
+    visitor_id: str | None = None,
+    service: WidgetService = Depends(get_widget_service),
+):
+    """Explicitly close a conversation from the client side."""
+    return await service.close_conversation(chatbot_id, conversation_id, site_origin, visitor_id)

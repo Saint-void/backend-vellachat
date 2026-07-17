@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.chatbot.chatbotModels import Chatbot
@@ -58,3 +58,25 @@ class WidgetRepository:
         await self.db.commit()
         await self.db.refresh(message)
         return message
+
+    async def expire_conversations_before(self, cutoff_time: datetime) -> int:
+        """Mark all conversations with status='open' and updated_at < cutoff_time as 'expired'.
+
+        Returns the number of conversations marked as expired.
+        """
+        result = await self.db.execute(
+            update(WidgetConversation)
+            .where(
+                WidgetConversation.status == "open",
+                WidgetConversation.updated_at < cutoff_time,
+            )
+            .values(status="expired")
+        )
+        await self.db.commit()
+        return result.rowcount or 0
+
+    async def close_conversation(self, conversation: WidgetConversation) -> None:
+        """Mark a conversation as closed."""
+        conversation.status = "closed"
+        self.db.add(conversation)
+        await self.db.commit()

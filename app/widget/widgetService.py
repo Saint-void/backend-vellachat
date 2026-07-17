@@ -19,13 +19,6 @@ from app.widget.widgetSchemas import (
 )
 
 
-# Below this many raw words, a message is treated as too low-signal to be
-# worth an embedding call - e.g. a bare name, "hi", "ok". Adjust once you've
-# watched real top_similarity / row_count logs from KnowledgeRetriever; this
-# is a starting guess, not a tuned value.
-MIN_WORDS_FOR_RETRIEVAL = 2
-
-
 class WidgetService:
     def __init__(self, repository: WidgetRepository):
         self.repository = repository
@@ -69,6 +62,8 @@ class WidgetService:
         conversation = await self.repository.get_conversation(conversation_id, chatbot.id)
         if conversation is None:
             raise NotFoundError("Conversation not found")
+        if conversation.status != "open":
+            raise ValidationError("This conversation has expired. Start a new one by refreshing.")
         self._validate_conversation_access(conversation, data.site_origin, data.visitor_id)
 
         content = data.content.strip()
@@ -77,17 +72,30 @@ class WidgetService:
 
         visitor_message = await self.repository.create_message(conversation, "visitor", content)
         reply_text = await self._build_reply(chatbot, content)
-        assistant_message = await self.repository.create_message(
-            conversation,
-            "assistant",
-            reply_text,
-        )
+        assistant_message = await self.repository.create_message(conversation, "assistant", reply_text)
 
         return WidgetSendMessageRead(
             conversation_id=conversation.id,
             visitor_message=WidgetMessageRead.model_validate(visitor_message),
             assistant_message=WidgetMessageRead.model_validate(assistant_message),
         )
+
+    async def close_conversation(
+        self,
+        chatbot_id: UUID,
+        conversation_id: UUID,
+        site_origin: str,
+        visitor_id: str | None = None,
+    ) -> WidgetConversationRead:
+        """Explicitly close a conversation from the client side."""
+        chatbot = await self._get_chatbot(chatbot_id)
+        self._validate_origin(chatbot, site_origin)
+        conversation = await self.repository.get_conversation(conversation_id, chatbot.id)
+        if conversation is None:
+            raise NotFoundError("Conversation not found")
+        self._validate_conversation_access(conversation, site_origin, visitor_id)
+        await self.repository.close_conversation(conversation)
+        return await self._load_conversation(conversation)
 
     async def _get_chatbot(self, chatbot_id: UUID) -> Chatbot:
         chatbot = await self.repository.get_chatbot(chatbot_id)
@@ -109,36 +117,27 @@ class WidgetService:
         return WidgetConversationRead.model_validate(conversation_data)
 
     async def _build_reply(self, chatbot: Chatbot, content: str) -> str:
-        # Skip the embedding + generation round-trip entirely for messages
-        # too short to be a real question ("Donaldson", "hi", "ok").
-        if self._is_low_signal(content):
-            return self._fallback_reply(chatbot)
+        """
+        User -> embedding search -> relevant context -> AI -> response.
 
+        No FAQ pre-match, no low-signal short-circuit: every message goes
+        to KnowledgeRetriever. The only remaining fallback covers the two
+        cases that flow can't itself resolve -- a knowledge base with zero
+        chunks, or the Ollama call failing outright.
+        """
         knowledge_answer, _matches = await KnowledgeRetriever(
             KnowledgeRepository(self.repository.db)
         ).answer_from_knowledge(chatbot.id, chatbot.name, content, chatbot.tone)
+
         if knowledge_answer:
             return knowledge_answer.strip()
 
         return self._fallback_reply(chatbot)
 
-    def _is_low_signal(self, content: str) -> bool:
-        return len(content.split()) < MIN_WORDS_FOR_RETRIEVAL and not content.rstrip().endswith("?")
-
     def _fallback_reply(self, chatbot: Chatbot) -> str:
         if chatbot.handoff_email:
-            return (
-                f"Thanks for reaching out. I do not have a perfect answer yet, "
-                f"but our team can help at {chatbot.handoff_email}."
-            )
-
-        if chatbot.support_goal:
-            return (
-                "Thanks for reaching out. I do not have a perfect answer yet, "
-                f"but this chatbot is set up to help with: {chatbot.support_goal.strip()}"
-            )
-
-        return "Thanks for reaching out. I do not have a perfect answer yet, but I can still pass this along to the team."
+            return f"Thanks for reaching out. I don't have an answer for that yet, but our team can help at {chatbot.handoff_email}."
+        return "Thanks for reaching out. I don't have an answer for that yet, but I'll pass it along to the team."
 
     def _config_from_chatbot(self, chatbot: Chatbot) -> WidgetConfigRead:
         suggestions = self._suggested_questions(chatbot)

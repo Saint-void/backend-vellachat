@@ -1,5 +1,6 @@
 """Data access for knowledge documents and vector chunks."""
 
+import re
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -156,7 +157,7 @@ class KnowledgeRepository:
                         id, document_id, chatbot_id, chunk_index, content, token_count, embedding
                     )
                     VALUES (
-                        :id, :document_id, :chatbot_id, :chunk_index, :content, :token_count, (:embedding)::vector
+                        :id, :document_id, :chatbot_id, :chunk_index, :content, :token_count, CAST(:embedding AS vector(768))
                     )
                     """
                 ),
@@ -173,10 +174,10 @@ class KnowledgeRepository:
                     id,
                     document_id,
                     content,
-                    1 - (embedding <=> (:embedding)::vector) AS similarity
+                    1 - (embedding <=> CAST(:embedding AS vector(768))) AS similarity
                 FROM public.knowledge_chunks
                 WHERE chatbot_id = :chatbot_id
-                ORDER BY embedding <=> (:embedding)::vector
+                ORDER BY embedding <=> CAST(:embedding AS vector(768))
                 LIMIT :limit
                 """
             ),
@@ -187,6 +188,37 @@ class KnowledgeRepository:
             },
         )
         return [dict(row._mapping) for row in result]
+
+    async def search_chunks_by_keyword(self, chatbot_id: UUID, query: str, limit: int = 5) -> list[dict]:
+        tokens = [token for token in re.findall(r"[a-z0-9]+", query.lower()) if len(token) > 2]
+        if not tokens:
+            return []
+
+        result = await self.db.execute(
+            text(
+                """
+                SELECT id, document_id, content
+                FROM public.knowledge_chunks
+                WHERE chatbot_id = :chatbot_id
+                """
+            ),
+            {"chatbot_id": str(chatbot_id)},
+        )
+
+        rows = [dict(row._mapping) for row in result]
+        if not rows:
+            return []
+
+        token_set = set(tokens)
+        scored_rows = []
+        for row in rows:
+            content = (row["content"] or "").lower()
+            overlap = sum(1 for token in token_set if token in content)
+            if overlap:
+                scored_rows.append({**row, "similarity": float(overlap)})
+
+        scored_rows.sort(key=lambda item: item["similarity"], reverse=True)
+        return scored_rows[:limit]
 
     def _vector_literal(self, embedding: list[float]) -> str:
         return f"[{','.join(f'{value:.8f}' for value in embedding)}]"

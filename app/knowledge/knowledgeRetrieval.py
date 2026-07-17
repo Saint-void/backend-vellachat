@@ -11,17 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeRetriever:
-    # TODO: move to settings if these ever need to be tunable per chatbot.
-    #
-    # MIN_SIMILARITY is now just a noise filter - it exists to avoid paying
-    # for an ~180s Ollama generation call on chunks that are pure garbage
-    # (cosine near zero), NOT to decide whether the answer is "good enough".
-    # That decision now belongs to the model via NO_MATCH_SENTINEL below.
-    # Retune this once you've watched real top_similarity values in prod -
-    # see the logger.info call in answer_from_knowledge.
-    MIN_SIMILARITY = 0.20
     MAX_MATCHES = 4
     MAX_CONTEXT_CHUNKS = 3
+    SIMILARITY_THRESHOLD = 0.5  # If best match is below this, no relevant knowledge found
+
 
     def __init__(self, repository: KnowledgeRepository):
         self.repository = repository
@@ -31,8 +24,22 @@ class KnowledgeRetriever:
     ) -> tuple[str | None, list[KnowledgeChunkMatch]]:
         provider = get_ai_provider()
 
+        # Check if question is substantial enough (at least 5 letters)
+        clean_question = question.strip()
+        letter_count = len([c for c in clean_question if c.isalpha()])
+        if letter_count < 5:
+            logger.info(
+                "generation_query_too_short chatbot_id=%s letter_count=%d",
+                chatbot_id,
+                letter_count,
+            )
+            return (
+                "Please provide a more detailed question so I can better assist you. Try to ask in at least 5 letters.",
+                [],
+            )
+
         try:
-            [query_embedding] = await provider.embed_texts([question])
+            [query_embedding] = await provider.embed_texts([clean_question])
         except Exception:
             logger.exception("Embedding failed for chatbot_id=%s", chatbot_id)
             return None, []
@@ -42,6 +49,16 @@ class KnowledgeRetriever:
         except Exception:
             logger.exception("Knowledge chunk search failed for chatbot_id=%s", chatbot_id)
             return None, []
+
+        # Track whether we used keyword fallback
+        used_keyword_fallback = False
+        if not rows and hasattr(self.repository, "search_chunks_by_keyword"):
+            try:
+                rows = await self.repository.search_chunks_by_keyword(chatbot_id, question, limit=self.MAX_MATCHES)
+                used_keyword_fallback = True
+            except Exception:
+                logger.exception("Keyword knowledge fallback failed for chatbot_id=%s", chatbot_id)
+                rows = []
 
         # Log every search regardless of outcome - this is what you were
         # missing when you had to reverse-engineer the gate from raw SQL
@@ -63,32 +80,115 @@ class KnowledgeRetriever:
                 similarity=float(row["similarity"] or 0),
             )
             for row in rows
-            if float(row["similarity"] or 0) >= self.MIN_SIMILARITY
         ]
 
-        if not matches:
-            return None, []
-
-        try:
-            answer = await provider.generate_answer(
-                question, chatbot_name, [match.content for match in matches[: self.MAX_CONTEXT_CHUNKS]], tone
+        # Check if we have meaningful knowledge
+        # Only apply threshold to vector search results; keyword results always proceed to answer generation
+        best_similarity = max((match.similarity for match in matches), default=0)
+        if not matches or (not used_keyword_fallback and best_similarity < self.SIMILARITY_THRESHOLD):
+            logger.info(
+                "generation_no_knowledge chatbot_id=%s best_similarity=%s used_keyword=%s",
+                chatbot_id,
+                best_similarity,
+                used_keyword_fallback,
             )
-            logger.info("generation_raw chatbot_id=%s raw_answer=%r", chatbot_id, answer)
-        except Exception:
-            logger.exception("Answer generation failed for chatbot_id=%s", chatbot_id)
-            # Still return matches - caller can fall back to a generic
-            # response instead of hard-failing the whole request.
-            return None, matches
+            try:
+                fallback_answer = await provider.generate_fallback_answer(
+                    chatbot_name, question, tone
+                )
+                return fallback_answer, matches
+            except Exception:
+                logger.exception("Fallback generation failed for chatbot_id=%s", chatbot_id)
+                return None, matches
 
-        answer = (answer or "").strip()
+        answer = None
+        for attempt in range(2):
+            try:
+                answer = await provider.generate_answer(
+                    question, chatbot_name, [match.content for match in matches[: self.MAX_CONTEXT_CHUNKS]], tone
+                )
+                logger.info("generation_raw chatbot_id=%s attempt=%d raw_answer=%r", chatbot_id, attempt + 1, answer)
+            except Exception:
+                logger.exception("Answer generation failed for chatbot_id=%s", chatbot_id)
+                # Fall back to fallback generation instead of showing chunk
+                try:
+                    fallback_answer = await provider.generate_fallback_answer(
+                        chatbot_name, question, tone
+                    )
+                    return fallback_answer, matches
+                except Exception:
+                    logger.exception("Fallback generation failed for chatbot_id=%s", chatbot_id)
+                    return None, matches
 
-        # The model, not a similarity score, gets the final say on whether
-        # it actually had enough to answer. Normalize casing/whitespace
-        # since small local models aren't perfectly reliable about exact
-        # string output - if this still drifts in practice, switch to
-        # NO_MATCH_SENTINEL in answer.upper() instead of equality.
-        if not answer or answer.upper() == NO_MATCH_SENTINEL:
-            logger.info("generation_no_match chatbot_id=%s", chatbot_id)
-            return None, matches
+            answer = (answer or "").strip()
+            
+            # Check if the answer is a refusal/no-answer response:
+            # 1. Explicit NO_MATCH sentinel
+            # 2. Phrases indicating the model couldn't find an answer
+            if not self._is_valid_answer(answer):
+                if attempt == 0:
+                    logger.info("generation_retry chatbot_id=%s", chatbot_id)
+                    continue
+                else:
+                    logger.info("generation_no_match chatbot_id=%s", chatbot_id)
+                    # Model refused even with context - use fallback generation instead of chunk
+                    try:
+                        fallback_answer = await provider.generate_fallback_answer(
+                            chatbot_name, question, tone
+                        )
+                        return fallback_answer, matches
+                    except Exception:
+                        logger.exception("Fallback generation failed after model refusal for chatbot_id=%s", chatbot_id)
+                        return None, matches
+            
+            return answer, matches
 
-        return answer, matches
+        return None, matches
+
+    def _fallback_answer_from_matches(self, matches: list[KnowledgeChunkMatch]) -> str | None:
+        if not matches:
+            return None
+
+        best_match = max(matches, key=lambda match: match.similarity)
+        content = (best_match.content or "").strip()
+        if not content:
+            return None
+
+        return content
+
+    def _is_valid_answer(self, answer: str) -> bool:
+        """
+        Check if the answer is a valid response or a refusal/no-answer signal.
+        
+        Returns False if:
+        - Answer is empty
+        - Starts with NO_MATCH sentinel
+        - Contains common refusal phrases indicating no answer was found
+        """
+        if not answer:
+            return False
+        
+        upper = answer.upper()
+        if upper.startswith(NO_MATCH_SENTINEL):
+            return False
+        
+        # Detect common refusal patterns from local models
+        refusal_patterns = [
+            "DOESN'T CONTAIN",
+            "DOES NOT CONTAIN",
+            "NO INFORMATION",
+            "NOT PROVIDED",
+            "NOT FOUND",
+            "CANNOT FIND",
+            "NO DETAILS",
+            "NO ANSWER",
+            "DON'T HAVE",
+            "I DON'T HAVE",
+            "UNABLE TO",
+        ]
+        
+        for pattern in refusal_patterns:
+            if pattern in upper:
+                return False
+        
+        return True

@@ -36,12 +36,12 @@ class Settings(BaseSettings):
     # running app -- FastAPI's async workers open many short-lived
     # connections, and pooling keeps that from exhausting Postgres'
     # connection limit.
-    DATABASE_URL: str
+    DATABASE_URL: str = ""
 
     # Direct connection (port 5432). Used only by Alembic. Migrations
     # issue DDL and prepared statements that don't reliably survive a
     # transaction-mode pooler -- give Alembic its own unpooled path.
-    DIRECT_DATABASE_URL: str
+    DIRECT_DATABASE_URL: str = ""
 
     # --- Auth ---
     # e.g. https://xxxxx.supabase.co -- used to discover the project's
@@ -49,23 +49,15 @@ class Settings(BaseSettings):
     # No secret key needed for this: Supabase signs session JWTs with
     # an asymmetric key by default, so verification only needs the
     # public key, which this URL leads to.
-    SUPABASE_URL: str
-    SUPABASE_PUBLISHABLE_KEY: str
+    SUPABASE_URL: str = ""
+    SUPABASE_PUBLISHABLE_KEY: str = ""
 
     # --- AI ---
-    # "ollama" for local development, "openai" for production.
-    AI_PROVIDER: str = Field(default="ollama", pattern="^(ollama|openai)$")
+    # Ollama only for now -- see app/ai/aiProviders.py.
     AI_EMBEDDING_DIMENSIONS: int = 768
-
-    # Ollama (local)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_CHAT_MODEL: str = "qwen2.5:3b"
+    OLLAMA_CHAT_MODEL: str = "qwen2.5:7b"
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
-
-    # OpenAI
-    OPENAI_API_KEY: str | None = None
-    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
-    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
 
     # --- Knowledge ---
     KNOWLEDGE_STORAGE_DIR: str = ".data/knowledge_uploads"
@@ -92,6 +84,8 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", "DIRECT_DATABASE_URL")
     @classmethod
     def validate_postgres_url(cls, value: str) -> str:
+        if not value:
+            return value
         if not value.startswith("postgresql"):
             raise ValueError("must be a postgresql:// (or postgresql+asyncpg://) connection string")
         return value

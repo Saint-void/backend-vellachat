@@ -21,6 +21,14 @@ class AIProvider(Protocol):
     ) -> str:
         ...
 
+    async def generate_fallback_answer(
+        self,
+        chatbot_name: str,
+        question: str,
+        tone: str,
+    ) -> str:
+        ...
+
 
 _provider: AIProvider | None = None
 
@@ -28,14 +36,11 @@ _provider: AIProvider | None = None
 def get_ai_provider() -> AIProvider:
     global _provider
     if _provider is None:
-        if settings.AI_PROVIDER == "ollama":
-            _provider = OllamaProvider(
-                base_url=settings.OLLAMA_BASE_URL,
-                embedding_model=settings.OLLAMA_EMBED_MODEL,
-                chat_model=settings.OLLAMA_CHAT_MODEL,
-            )
-        else:
-            raise ValueError(f"Unknown AI provider: {settings.AI_PROVIDER}")
+        _provider = OllamaProvider(
+            base_url=settings.OLLAMA_BASE_URL,
+            embedding_model=settings.OLLAMA_EMBED_MODEL,
+            chat_model=settings.OLLAMA_CHAT_MODEL,
+        )
     return _provider
 
 
@@ -101,17 +106,18 @@ class OllamaProvider:
             return ""
 
         # NOTE: the model itself now owns the "can I answer this" decision.
-        # It must emit NO_MATCH_SENTINEL exactly (nothing else on that line)
-        # when the supplied context doesn't cover the question. Retrieval no
-        # longer relies solely on a similarity-score cutoff to make that call
-        # - see app/knowledge/retrieval.py.
+        # It should answer directly from the supplied knowledge whenever it
+        # can. Only use the sentinel when the retrieved context truly does
+        # not contain the answer.
         prompt = f"""
 You are {chatbot_name}.
 
-Answer ONLY using the supplied business knowledge below.
+Answer the user's question using ONLY the business knowledge below.
 
-If, and only if, the business knowledge does not contain the answer,
-respond with exactly this and nothing else: {NO_MATCH_SENTINEL}
+- If the business knowledge contains the answer, provide the answer directly and concisely.
+- If the business knowledge only partially contains the answer, give the best answer you can from the supplied knowledge.
+- Do not return placeholders unless the knowledge contains no relevant information at all.
+- Never return {NO_MATCH_SENTINEL} if you can provide a useful answer from the knowledge.
 
 Tone:
 {tone}
@@ -141,6 +147,47 @@ Question
             if not response.is_success:
                 raise ExternalServiceError(
                     "Ollama generation failed."
+                )
+
+            return response.json()["response"].strip()
+
+    async def generate_fallback_answer(
+        self,
+        chatbot_name: str,
+        question: str,
+        tone: str,
+    ) -> str:
+        """Generate a response when no relevant knowledge is found in the knowledge base."""
+        prompt = f"""You are {chatbot_name}.
+
+The user asked: "{question}"
+
+IMPORTANT: We do NOT have information about this topic in our knowledge base.
+
+Do NOT try to answer this question from your general knowledge.
+Do NOT provide information about topics outside our knowledge base.
+
+Instead, respond in a {tone} way that clearly states you don't have information about this topic. 
+
+Be direct: "I don't have information about that in my knowledge base." or similar.
+
+You can briefly mention what topics you CAN help with if appropriate, but do NOT provide information about the user's question.
+"""
+
+        async with httpx.AsyncClient(timeout=180) as client:
+
+            response = await client.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.chat_model,
+                    "prompt": prompt,
+                    "stream": False,
+                },
+            )
+
+            if not response.is_success:
+                raise ExternalServiceError(
+                    "Ollama fallback generation failed."
                 )
 
             return response.json()["response"].strip()
