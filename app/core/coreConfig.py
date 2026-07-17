@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     KNOWLEDGE_STORAGE_DIR: str = ".data/knowledge_uploads"
     KNOWLEDGE_MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
 
+    # --- Chatbot assets ---
+    CHATBOT_LOGO_STORAGE_DIR: str = ".data/chatbot_logos"
+    CHATBOT_LOGO_MAX_UPLOAD_BYTES: int = 2 * 1024 * 1024
+    CHATBOT_WALLPAPER_STORAGE_DIR: str = ".data/chatbot_wallpapers"
+    CHATBOT_WALLPAPER_MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024
+
     # --- CORS ---
     # Comma-separated, e.g. "http://localhost:3000,https://app.example.com".
     # Kept as a plain str field on purpose: pydantic-settings tries to

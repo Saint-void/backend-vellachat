@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from app.core.coreExceptions import NotFoundError, ValidationError
+from app.core.coreExceptions import ForbiddenError, NotFoundError, ValidationError
 from app.widget.widgetSchemas import WidgetConversationRead
 from app.widget.widgetService import WidgetService
 
@@ -120,3 +120,35 @@ def test_send_message_rejects_expired():
             assert "expired" in str(e).lower()
     
     asyncio.run(run_test())
+
+
+def test_localhost_origin_is_allowed_for_dev_widget_requests():
+    """Allow localhost-based widget embeds to work during local development."""
+
+    async def run_test():
+        repo = LocalhostWidgetRepository()
+        service = WidgetService(repo)
+
+        chatbot_id = uuid4()
+        result = await service.get_config(chatbot_id, "http://localhost:3001")
+        assert result.chatbot_id == chatbot_id
+
+    asyncio.run(run_test())
+
+
+class LocalhostWidgetRepository(MockWidgetRepository):
+    async def get_chatbot(self, chatbot_id):
+        class MockChatbot:
+            id = chatbot_id
+            greeting_message = "Hello!"
+            status = "active"
+            website_domain = "example.com"
+            name = "Demo"
+            business_name = "Demo"
+            industry = None
+            support_goal = None
+            brand_color = ""
+            logo_url = ""
+            tone = "friendly"
+
+        return MockChatbot()

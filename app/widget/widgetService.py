@@ -195,6 +195,9 @@ class WidgetService:
         site_host = (site_parsed.hostname or "").lower()
         site_port = site_parsed.port or self._default_port(site_scheme)
 
+        if self._is_local_development_origin(site_origin):
+            return True
+
         if "://" in website_domain:
             allowed = urlparse(website_domain)
             allowed_scheme = allowed.scheme or "https"
@@ -214,6 +217,14 @@ class WidgetService:
             return site_host == allowed_host and site_port == allowed_port
 
         return site_host == allowed_host or site_host.endswith(f".{allowed_host}")
+
+    def _is_local_development_origin(self, site_origin: str) -> bool:
+        try:
+            parsed = urlparse(site_origin if "://" in site_origin else f"https://{site_origin}")
+        except Exception:
+            return False
+        host = (parsed.hostname or "").lower()
+        return host in {"localhost", "127.0.0.1", "::1"}
 
     def _canonical_origin(self, value: str) -> str:
         parsed = urlparse(value.strip() if "://" in value else f"https://{value.strip()}")
