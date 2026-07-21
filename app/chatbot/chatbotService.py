@@ -2,10 +2,14 @@
 
 from uuid import UUID
 
+from fastapi import UploadFile
+
+from app.chatbot.chatbotLogoStorage import ChatbotLogoStorage
 from app.chatbot.chatbotModels import Chatbot
 from app.chatbot.chatbotRepository import ChatbotRepository
 from app.chatbot.chatbotSchemas import ChatbotCreate,ChatbotUpdate
 from app.core.coreExceptions import NotFoundError, ValidationError
+from app.core.coreConfig import settings
 
 
 class ChatbotService:
@@ -14,6 +18,7 @@ class ChatbotService:
 
     def __init__(self, repository: ChatbotRepository):
         self.repository = repository
+        self.logo_storage = ChatbotLogoStorage(settings.CHATBOT_LOGO_STORAGE_DIR, settings.CHATBOT_LOGO_MAX_UPLOAD_BYTES)
 
     async def create_chatbot(self, owner_id: UUID, data: ChatbotCreate) -> Chatbot:
         return await self.repository.create(owner_id, **data.model_dump())
@@ -43,4 +48,34 @@ class ChatbotService:
         chatbot = await self.get_chatbot(chatbot_id, owner_id)
         await self.repository.delete(chatbot)
 
-    
+    async def upload_logo(self, chatbot_id: UUID, owner_id: UUID, file: UploadFile) -> Chatbot:
+        """Upload and store a logo for a chatbot."""
+        chatbot = await self.get_chatbot(chatbot_id, owner_id)
+
+        if not file.content_type or file.content_type not in ChatbotLogoStorage.VALID_TYPES:
+            raise ValidationError(f"Unsupported image type. Must be PNG, JPEG, WebP, or GIF.")
+
+        if file.size and file.size > settings.CHATBOT_LOGO_MAX_UPLOAD_BYTES:
+            raise ValidationError(f"Logo must be smaller than {settings.CHATBOT_LOGO_MAX_UPLOAD_BYTES / (1024 * 1024):.0f} MB.")
+
+        # Read file content
+        content = await file.read()
+
+        # Store the logo
+        logo_path = await self.logo_storage.replace(chatbot_id, file.content_type, content)
+
+        # Update chatbot with logo URL (store relative path)
+        logo_url = f"/api/v1/chatbots/{chatbot_id}/logo"
+        return await self.repository.update(chatbot, logo_url=logo_url)
+
+    async def delete_logo(self, chatbot_id: UUID, owner_id: UUID) -> Chatbot:
+        """Delete the logo for a chatbot."""
+        chatbot = await self.get_chatbot(chatbot_id, owner_id)
+
+        if chatbot.logo_url:
+            logo_path = await self.logo_storage.resolve(chatbot_id)
+            if logo_path:
+                await self.logo_storage.delete(str(logo_path))
+
+        # Update chatbot to remove logo URL
+        return await self.repository.update(chatbot, logo_url=None)

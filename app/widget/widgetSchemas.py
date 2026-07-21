@@ -15,9 +15,6 @@ class WidgetConfigRead(BaseModel):
     greeting_message: str
     brand_color: str
     logo_url: str | None
-    widget_background_color: str
-    widget_wallpaper_url: str | None
-    widget_font_family: str | None
     tone: str
     suggested_questions: list[str]
 
