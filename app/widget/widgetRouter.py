@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -27,9 +27,10 @@ def get_widget_service(db: AsyncSession = Depends(get_db)) -> WidgetService:
 async def get_config(
     chatbot_id: UUID,
     site_origin: str,
+    request: Request,
     service: WidgetService = Depends(get_widget_service),
 ):
-    return await service.get_config(chatbot_id, site_origin)
+    return await service.get_config(chatbot_id, site_origin, request)
 
 
 @router.post("/{chatbot_id}/conversations", response_model=WidgetConversationRead)

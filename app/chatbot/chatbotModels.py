@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.databaseBase import Base
@@ -34,6 +34,7 @@ class Chatbot(Base):
     )
     brand_color: Mapped[str] = mapped_column(String(20), nullable=False, default="#111111")
     logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    widget_settings: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="'{}'::jsonb")
     handoff_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

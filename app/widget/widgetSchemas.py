@@ -1,6 +1,7 @@
 """Schemas for the public chatbot widget."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,6 +16,7 @@ class WidgetConfigRead(BaseModel):
     greeting_message: str
     brand_color: str
     logo_url: str | None
+    widget_settings: dict[str, Any]
     tone: str
     suggested_questions: list[str]
 

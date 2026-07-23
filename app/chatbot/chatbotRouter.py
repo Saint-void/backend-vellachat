@@ -92,22 +92,37 @@ async def delete_chatbot_logo(
 @router.get("/{chatbot_id}/logo")
 async def get_chatbot_logo(chatbot_id: UUID):
     """Serve the logo image for a chatbot (public endpoint, no auth required)."""
-    storage = ChatbotLogoStorage(settings.CHATBOT_LOGO_STORAGE_DIR, settings.CHATBOT_LOGO_MAX_UPLOAD_BYTES)
-    logo_path = await storage.resolve(chatbot_id)
+    try:
+        storage = ChatbotLogoStorage(settings.CHATBOT_LOGO_STORAGE_DIR, settings.CHATBOT_LOGO_MAX_UPLOAD_BYTES)
+        logo_path = await storage.resolve(chatbot_id)
+        
+        if not logo_path:
+            print(f"✗ No logo found for chatbot {chatbot_id}")
+            raise NotFoundError("Logo not found")
+        
+        print(f"✓ Found logo at: {logo_path}")
 
-    if not logo_path:
-        raise NotFoundError("Logo not found")
+        content = await storage.read(str(logo_path))
+        print(f"✓ Read {len(content)} bytes from logo")
 
-    content = await storage.read(str(logo_path))
+        # Determine MIME type from file extension
+        mime_types = {
+            "png": "image/png",
+            "jpg": "image/jpeg",
+            "webp": "image/webp",
+            "gif": "image/gif",
+        }
+        ext = logo_path.suffix.lstrip(".").lower()
+        media_type = mime_types.get(ext, "application/octet-stream")
+        print(f"✓ Serving as {media_type}")
 
-    # Determine MIME type from file extension
-    mime_types = {
-        "png": "image/png",
-        "jpg": "image/jpeg",
-        "webp": "image/webp",
-        "gif": "image/gif",
-    }
-    ext = logo_path.suffix.lstrip(".").lower()
-    media_type = mime_types.get(ext, "application/octet-stream")
-
-    return Response(content=content, media_type=media_type)
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+    except NotFoundError:
+        raise
+    except Exception as e:
+        print(f"✗ Error serving logo for {chatbot_id}: {e}")
+        raise NotFoundError(f"Could not retrieve logo: {str(e)}")

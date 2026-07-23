@@ -3,6 +3,8 @@
 from urllib.parse import urlparse
 from uuid import UUID
 
+from fastapi import Request
+
 from app.chatbot.chatbotModels import Chatbot
 from app.core.coreExceptions import ForbiddenError, NotFoundError, ValidationError
 from app.knowledge.knowledgeRepository import KnowledgeRepository
@@ -23,10 +25,10 @@ class WidgetService:
     def __init__(self, repository: WidgetRepository):
         self.repository = repository
 
-    async def get_config(self, chatbot_id: UUID, site_origin: str) -> WidgetConfigRead:
+    async def get_config(self, chatbot_id: UUID, site_origin: str, request: Request) -> WidgetConfigRead:
         chatbot = await self._get_chatbot(chatbot_id)
         self._validate_origin(chatbot, site_origin)
-        return self._config_from_chatbot(chatbot)
+        return self._config_from_chatbot(chatbot, request)
 
     async def create_conversation(self, chatbot_id: UUID, data: WidgetConversationCreate) -> WidgetConversationRead:
         chatbot = await self._get_chatbot(chatbot_id)
@@ -139,8 +141,15 @@ class WidgetService:
             return f"Thanks for reaching out. I don't have an answer for that yet, but our team can help at {chatbot.handoff_email}."
         return "Thanks for reaching out. I don't have an answer for that yet, but I'll pass it along to the team."
 
-    def _config_from_chatbot(self, chatbot: Chatbot) -> WidgetConfigRead:
+    def _config_from_chatbot(self, chatbot: Chatbot, request: Request) -> WidgetConfigRead:
         suggestions = self._suggested_questions(chatbot)
+        
+        # Convert relative logo URL to absolute URL using the request's base URL
+        logo_url = chatbot.logo_url
+        if logo_url and logo_url.startswith('/api/'):
+            # Construct absolute URL from request scheme and host
+            logo_url = f"{request.url.scheme}://{request.url.netloc}{logo_url}"
+        
         return WidgetConfigRead(
             chatbot_id=chatbot.id,
             name=chatbot.name,
@@ -149,7 +158,8 @@ class WidgetService:
             support_goal=chatbot.support_goal,
             greeting_message=chatbot.greeting_message,
             brand_color=chatbot.brand_color,
-            logo_url=chatbot.logo_url,
+            logo_url=logo_url,
+            widget_settings=chatbot.widget_settings or {},
             tone=chatbot.tone,
             suggested_questions=suggestions,
         )

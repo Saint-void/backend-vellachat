@@ -1,6 +1,7 @@
 """Request and response schemas for the chatbot module."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -16,6 +17,7 @@ class ChatbotCreate(BaseModel):
     greeting_message: str = Field(default="Hi! How can I help you today?", min_length=1, max_length=1000)
     brand_color: str = Field(default="#111111", min_length=4, max_length=20)
     logo_url: str | None = Field(default=None, max_length=2048)
+    widget_settings: dict[str, Any] = Field(default_factory=dict)
     handoff_email: str | None = Field(default=None, max_length=255)
 
     @field_validator("*", mode="before")
@@ -37,6 +39,7 @@ class ChatbotUpdate(BaseModel):
     greeting_message: str | None = Field(default=None, min_length=1, max_length=1000)
     brand_color: str | None = Field(default=None, min_length=4, max_length=20)
     logo_url: str | None = Field(default=None, max_length=2048)
+    widget_settings: dict[str, Any] | None = None
     handoff_email: str | None = Field(default=None, max_length=255)
     status: str | None = Field(default=None, min_length=1, max_length=30)
 
@@ -63,6 +66,7 @@ class ChatbotRead(BaseModel):
     greeting_message: str
     brand_color: str
     logo_url: str | None
+    widget_settings: dict[str, Any]
     handoff_email: str | None
     status: str
     created_at: datetime

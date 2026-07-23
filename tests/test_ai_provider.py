@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from app.ai.providers import OllamaProvider
+from app.ai.aiProviders import OllamaProvider
 from app.core.config import settings
 
 

@@ -61,12 +61,22 @@ class ChatbotService:
         # Read file content
         content = await file.read()
 
+        if not content:
+            raise ValidationError("File appears to be empty")
+
         # Store the logo
-        logo_path = await self.logo_storage.replace(chatbot_id, file.content_type, content)
+        try:
+            logo_path = await self.logo_storage.replace(chatbot_id, file.content_type, content)
+            print(f"✓ Logo saved for chatbot {chatbot_id}: {logo_path}")
+        except Exception as e:
+            print(f"✗ Failed to save logo for chatbot {chatbot_id}: {e}")
+            raise ValidationError(f"Failed to save logo: {str(e)}")
 
         # Update chatbot with logo URL (store relative path)
         logo_url = f"/api/v1/chatbots/{chatbot_id}/logo"
-        return await self.repository.update(chatbot, logo_url=logo_url)
+        updated = await self.repository.update(chatbot, logo_url=logo_url)
+        print(f"✓ Updated chatbot {chatbot_id} with logo_url: {logo_url}")
+        return updated
 
     async def delete_logo(self, chatbot_id: UUID, owner_id: UUID) -> Chatbot:
         """Delete the logo for a chatbot."""

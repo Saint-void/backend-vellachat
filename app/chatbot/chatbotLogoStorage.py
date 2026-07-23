@@ -87,6 +87,13 @@ class ChatbotLogoStorage:
 
         return await asyncio.to_thread(_resolve)
 
+    async def read(self, storage_path: str) -> bytes:
+        """Read logo file contents."""
+        def _read() -> bytes:
+            return Path(storage_path).read_bytes()
+
+        return await asyncio.to_thread(_read)
+
     async def delete(self, storage_path: str | None) -> None:
         """Delete a logo file."""
         if not storage_path:
