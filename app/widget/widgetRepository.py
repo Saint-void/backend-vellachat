@@ -22,7 +22,6 @@ class WidgetRepository:
         conversation = WidgetConversation(chatbot_id=chatbot_id, site_origin=site_origin, visitor_id=visitor_id)
         self.db.add(conversation)
         await self.db.commit()
-        await self.db.refresh(conversation)
         return conversation
 
     async def get_conversation(self, conversation_id: UUID, chatbot_id: UUID) -> WidgetConversation | None:
@@ -56,7 +55,6 @@ class WidgetRepository:
         conversation.updated_at = datetime.now(timezone.utc)
         self.db.add(message)
         await self.db.commit()
-        await self.db.refresh(message)
         return message
 
     async def expire_conversations_before(self, cutoff_time: datetime) -> int:
@@ -80,3 +78,20 @@ class WidgetRepository:
         conversation.status = "closed"
         self.db.add(conversation)
         await self.db.commit()
+
+    async def create_exchange(
+        self,
+        conversation: WidgetConversation,
+        visitor_content: str,
+        assistant_content: str,
+    ) -> tuple[WidgetMessage, WidgetMessage]:
+        visitor_message = WidgetMessage(
+            conversation_id=conversation.id, role="visitor", content=visitor_content
+        )
+        assistant_message = WidgetMessage(
+            conversation_id=conversation.id, role="assistant", content=assistant_content
+        )
+        conversation.updated_at = datetime.now(timezone.utc)
+        self.db.add_all([visitor_message, assistant_message])
+        await self.db.commit()
+        return visitor_message, assistant_message

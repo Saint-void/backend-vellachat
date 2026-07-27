@@ -43,7 +43,6 @@ def upgrade() -> None:
         """
     )
     op.create_index("ix_widget_messages_conversation_id", "widget_messages", ["conversation_id"], schema="public")
-    op.create_index("ix_widget_messages_matched_faq_id", "widget_messages", ["matched_faq_id"], schema="public")
 
     op.execute("ALTER TABLE public.widget_conversations ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE public.widget_messages ENABLE ROW LEVEL SECURITY")

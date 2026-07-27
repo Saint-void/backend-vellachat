@@ -72,10 +72,11 @@ class WidgetService:
         if not content:
             raise ValidationError("Message cannot be empty")
 
-        visitor_message = await self.repository.create_message(conversation, "visitor", content)
         reply_text = await self._build_reply(chatbot, content)
-        assistant_message = await self.repository.create_message(conversation, "assistant", reply_text)
-
+        visitor_message, assistant_message = await self.repository.create_exchange(
+            conversation, content, reply_text
+        )
+        
         return WidgetSendMessageRead(
             conversation_id=conversation.id,
             visitor_message=WidgetMessageRead.model_validate(visitor_message),

@@ -7,6 +7,7 @@ from uuid import uuid4
 from app.core.coreExceptions import ForbiddenError, NotFoundError, ValidationError
 from app.widget.widgetSchemas import WidgetConversationRead
 from app.widget.widgetService import WidgetService
+from unittest.mock import MagicMock
 
 
 class MockWidgetRepository:
@@ -130,7 +131,10 @@ def test_localhost_origin_is_allowed_for_dev_widget_requests():
         service = WidgetService(repo)
 
         chatbot_id = uuid4()
-        result = await service.get_config(chatbot_id, "http://localhost:3001")
+        fake_request = MagicMock()
+        fake_request.url.scheme = "http"
+        fake_request.url.netloc = "localhost:8000"
+        result = await service.get_config(chatbot_id, "http://localhost:3001", fake_request)
         assert result.chatbot_id == chatbot_id
 
     asyncio.run(run_test())
@@ -149,6 +153,7 @@ class LocalhostWidgetRepository(MockWidgetRepository):
             support_goal = None
             brand_color = ""
             logo_url = ""
+            widget_settings = {}
             tone = "friendly"
 
         return MockChatbot()

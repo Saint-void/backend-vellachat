@@ -56,8 +56,9 @@ class Settings(BaseSettings):
     # Ollama only for now -- see app/ai/aiProviders.py.
     AI_EMBEDDING_DIMENSIONS: int = 768
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_CHAT_MODEL: str = "qwen2.5:7b"
+    OLLAMA_CHAT_MODEL: str = "qwen3.5:9b"
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+    AI_PROVIDER: str = "ollama"
 
     # --- Knowledge ---
     KNOWLEDGE_STORAGE_DIR: str = ".data/knowledge_uploads"
