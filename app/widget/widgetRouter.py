@@ -37,9 +37,10 @@ async def get_config(
 async def create_conversation(
     chatbot_id: UUID,
     data: WidgetConversationCreate,
+    request: Request,
     service: WidgetService = Depends(get_widget_service),
 ):
-    return await service.create_conversation(chatbot_id, data)
+    return await service.create_conversation(chatbot_id, data, request)
 
 
 @router.get("/{chatbot_id}/conversations/{conversation_id}", response_model=WidgetConversationRead)

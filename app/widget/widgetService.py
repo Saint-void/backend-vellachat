@@ -175,15 +175,21 @@ class WidgetService:
             questions.insert(0, chatbot.support_goal.strip())
         return questions[:3]
 
-    def _validate_origin(self, chatbot: Chatbot, site_origin: str) -> None:
+    def _validate_origin(self, chatbot: Chatbot, request: Request) -> str:
+        """Returns the verified origin. Raises if it doesn't match the chatbot's domain."""
         if chatbot.status != "active":
             raise ForbiddenError("This chatbot is not active")
-
         if not chatbot.website_domain:
             raise ValidationError("Set a website domain before publishing this widget")
 
-        if not self._origin_matches(site_origin, chatbot.website_domain):
+        origin = request.headers.get("origin") or request.headers.get("referer")
+        if not origin:
+            raise ForbiddenError("Missing origin")
+
+        if not self._origin_matches(origin, chatbot.website_domain):
             raise ForbiddenError("This widget is not allowed on that domain")
+
+        return origin
 
     def _validate_conversation_access(
         self,
@@ -206,9 +212,6 @@ class WidgetService:
         site_host = (site_parsed.hostname or "").lower()
         site_port = site_parsed.port or self._default_port(site_scheme)
 
-        if self._is_local_development_origin(site_origin):
-            return True
-
         if "://" in website_domain:
             allowed = urlparse(website_domain)
             allowed_scheme = allowed.scheme or "https"
@@ -228,14 +231,6 @@ class WidgetService:
             return site_host == allowed_host and site_port == allowed_port
 
         return site_host == allowed_host or site_host.endswith(f".{allowed_host}")
-
-    def _is_local_development_origin(self, site_origin: str) -> bool:
-        try:
-            parsed = urlparse(site_origin if "://" in site_origin else f"https://{site_origin}")
-        except Exception:
-            return False
-        host = (parsed.hostname or "").lower()
-        return host in {"localhost", "127.0.0.1", "::1"}
 
     def _canonical_origin(self, value: str) -> str:
         parsed = urlparse(value.strip() if "://" in value else f"https://{value.strip()}")

@@ -123,23 +123,6 @@ def test_send_message_rejects_expired():
     asyncio.run(run_test())
 
 
-def test_localhost_origin_is_allowed_for_dev_widget_requests():
-    """Allow localhost-based widget embeds to work during local development."""
-
-    async def run_test():
-        repo = LocalhostWidgetRepository()
-        service = WidgetService(repo)
-
-        chatbot_id = uuid4()
-        fake_request = MagicMock()
-        fake_request.url.scheme = "http"
-        fake_request.url.netloc = "localhost:8000"
-        result = await service.get_config(chatbot_id, "http://localhost:3001", fake_request)
-        assert result.chatbot_id == chatbot_id
-
-    asyncio.run(run_test())
-
-
 class LocalhostWidgetRepository(MockWidgetRepository):
     async def get_chatbot(self, chatbot_id):
         class MockChatbot:
